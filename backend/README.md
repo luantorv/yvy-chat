@@ -1,9 +1,6 @@
 # pdf-ai-backend
 
-API HTTP independiente con la lógica de RAG (LlamaIndex + Ollama) que originalmente
-vivía como server actions de Next.js en `app/actions.ts` del proyecto `pdf-ai`. Este
-paquete no depende del frontend: se le puede subir un PDF directamente y chatear
-sobre su contenido vía HTTP.
+API HTTP independiente con la lógica de RAG (LlamaIndex + Ollama) que originalmente vivía como server actions de Next.js en `app/actions.ts` del proyecto `pdf-ai`. Este paquete no depende del frontend: se le puede subir un PDF directamente y chatear sobre su contenido vía HTTP.
 
 ## Requisitos
 
@@ -32,9 +29,10 @@ npm run dev     # con recarga automática
 npm start       # sin recarga
 ```
 
-También se puede levantar todo (Ollama + init de modelos + backend) con Docker:
+También se puede levantar todo el stack (Ollama + init de modelos + backend + frontend) con Docker desde la raíz del proyecto:
 
 ```bash
+cd ..
 docker compose up
 ```
 
@@ -60,12 +58,7 @@ curl -X POST http://localhost:3001/api/chat \
 
 ## Diferencias respecto a `app/actions.ts`
 
-La lógica de RAG (`src/engine.ts`) es prácticamente idéntica al server action
-original: mismos modelos, mismo chunking, mismo `ContextChatEngine`. Lo que se
-agregó para que funcione como proyecto independiente:
+La lógica de RAG (`src/engine.ts`) es prácticamente idéntica al server action original: mismos modelos, mismo chunking, mismo `ContextChatEngine`. Lo que se agregó para que funcione como proyecto independiente:
 
-- Un servidor Express (`src/index.ts`) que expone la misma funcionalidad como
-  endpoints HTTP en lugar de server actions de Next.js.
-- Parsing de PDF del lado del servidor (`src/pdf.ts`, usando `PDFLoader` de
-  LangChain para Node) para no depender del `WebPDFLoader` que corría en el
-  navegador del frontend.
+- Un servidor Express (`src/index.ts`) que expone la misma funcionalidad como endpoints HTTP en lugar de server actions de Next.js.
+- Parsing de PDF del lado del servidor (`src/pdf.ts`, usando `PDFLoader` de LangChain para Node) para no depender del `WebPDFLoader` que corría en el navegador del frontend.

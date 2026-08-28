@@ -1,5 +1,5 @@
 {
-  description = "YVY frontend – SvelteKit UI (chat + charts)";
+  description = "YvY-Chat – entorno de desarrollo (frontend SvelteKit + backend RAG)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -18,10 +18,13 @@
 
           shellHook = ''
             echo ""
-            echo "  YVY frontend dev shell"
+            echo "  YvY-Chat dev shell"
             echo ""
-            echo "  Requiere el backend corriendo (ver ../backend)"
-            echo "  npm install && npm run dev"
+            echo "  Backend:  cd backend  && npm install && npm run dev"
+            echo "  Frontend: cd frontend && npm install && npm run dev"
+            echo ""
+            echo "  O levantá todo el stack (Ollama incluido) con:"
+            echo "    docker compose up"
             echo ""
           '';
         };
