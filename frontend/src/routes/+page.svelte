@@ -11,7 +11,26 @@
   let barEl
   let lineEl
 
+  let backendReady = false
+  let healthTimer
+
+  let pdfFile = null
+  let uploading = false
+  let uploadError = ''
+  let uploadOk = ''
+
   $: messages, busy, endEl?.scrollIntoView({ behavior: 'smooth' })
+
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${API_URL}/health`)
+      const data = await res.json()
+      backendReady = !!data.chatEngineReady
+    } catch {
+      backendReady = false
+    }
+    if (!backendReady) healthTimer = setTimeout(checkHealth, 2000)
+  }
 
   function parseCSV(text) {
     const [hdr, ...rows] = text.trim().split('\n')
@@ -24,9 +43,37 @@
     })
   }
 
+  function onFileChange(e) {
+    pdfFile = e.target.files?.[0] ?? null
+    uploadError = ''
+  }
+
+  async function uploadPdf() {
+    if (!pdfFile || uploading) return
+    uploading = true
+    uploadError = ''
+    uploadOk = ''
+    try {
+      const form = new FormData()
+      form.append('file', pdfFile)
+      const res = await fetch(`${API_URL}/api/documents`, {
+        method: 'POST',
+        body: form
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Error al procesar el PDF')
+      backendReady = true
+      uploadOk = `"${pdfFile.name}" agregado a la base de conocimiento (${data.pages} páginas).`
+      pdfFile = null
+    } catch (err) {
+      uploadError = err.message ?? 'Error al subir el PDF.'
+    }
+    uploading = false
+  }
+
   async function send() {
     const q = input.trim()
-    if (!q || busy) return
+    if (!q || busy || !backendReady) return
     messages = [...messages, { role: 'human', text: q }]
     input = ''
     busy = true
@@ -34,12 +81,13 @@
       const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q })
+        body: JSON.stringify({ query: q })
       })
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Error generando la respuesta')
       messages = [...messages, { role: 'ai', text: data.response }]
-    } catch {
-      messages = [...messages, { role: 'ai', text: '❌ Error al conectar.' }]
+    } catch (err) {
+      messages = [...messages, { role: 'ai', text: `❌ ${err.message ?? 'Error al conectar.'}` }]
     }
     busy = false
   }
@@ -49,6 +97,8 @@
   }
 
   onMount(async () => {
+    checkHealth()
+
     // --- Bar chart ---
     let barData = [
       { name: 'Lote A', humedad: 68, temp: 27.5 },
@@ -120,6 +170,7 @@
     return () => {
       barChart.destroy()
       lineChart.destroy()
+      clearTimeout(healthTimer)
     }
   })
 </script>
@@ -132,6 +183,37 @@
       <div class="card flex-grow-1 d-flex flex-column" style="min-height: 0;">
         <div class="card-header fw-semibold">
           <i class="bi bi-chat-dots-fill me-2 text-success"></i>Chat RAG · YVY AI
+        </div>
+
+        <div class="card-body border-bottom py-2">
+          {#if !backendReady}
+            <div class="text-muted small">
+              <span class="spinner-border spinner-border-sm me-1"></span>
+              Cargando la base de conocimiento…
+            </div>
+          {/if}
+          <details>
+            <summary class="text-muted small" style="cursor: pointer;">
+              Agregar un PDF adicional (opcional)
+            </summary>
+            <div class="input-group input-group-sm mt-2">
+              <input
+                type="file"
+                accept="application/pdf"
+                class="form-control"
+                on:change={onFileChange}
+                disabled={uploading}
+              />
+              <button class="btn btn-outline-success" on:click={uploadPdf} disabled={!pdfFile || uploading}>
+                {uploading ? 'Procesando…' : 'Subir PDF'}
+              </button>
+            </div>
+            {#if uploadError}
+              <div class="text-danger small mt-1">{uploadError}</div>
+            {:else if uploadOk}
+              <div class="text-success small mt-1">{uploadOk}</div>
+            {/if}
+          </details>
         </div>
 
         <div
@@ -192,12 +274,12 @@
             <input
               type="text"
               class="form-control"
-              placeholder="Preguntá algo sobre tus cultivos…"
+              placeholder={backendReady ? 'Preguntá algo sobre tus cultivos…' : 'Cargando la base de conocimiento…'}
               bind:value={input}
               on:keydown={handleKey}
-              disabled={busy}
+              disabled={busy || !backendReady}
             />
-            <button class="btn btn-primary" on:click={send} disabled={busy}>
+            <button class="btn btn-primary" on:click={send} disabled={busy || !backendReady}>
               Enviar
             </button>
           </div>

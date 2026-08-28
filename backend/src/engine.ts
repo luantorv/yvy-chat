@@ -1,5 +1,11 @@
 import ollamaClient from "ollama/browser"
-ollamaClient.config.host = process.env.OLLAMA_HOST ?? "http://127.0.0.1:11434"
+// El cliente por defecto de "ollama/browser" es el que usan internamente las
+// clases Ollama/OllamaEmbedding de llamaindex, pero su `host` sólo se puede
+// configurar por constructor; `config` es `protected` en sus tipos aunque en
+// runtime es un objeto mutable normal, así que lo casteamos para poder
+// apuntarlo al OLLAMA_HOST configurado antes de crear esas instancias.
+;(ollamaClient as unknown as { config: { host: string } }).config.host =
+  process.env.OLLAMA_HOST ?? "http://127.0.0.1:11434"
 
 import { Document } from "llamaindex/Node"
 import { VectorStoreIndex } from "llamaindex/indices/vectorStore/index"
@@ -21,9 +27,9 @@ const embedModel = new OllamaEmbedding({
 
 const llm = new Ollama({
   model: process.env.OLLAMA_MODEL ?? "argano-contract-assistant",
-  modelMetadata: {
+  options: {
     temperature: 0,
-    maxTokens: 1024,
+    num_predict: 1024,
   }
 })
 
@@ -43,10 +49,15 @@ const nodeParser = new SimpleNodeParser({
 })
 
 let chatEngine: ContextChatEngine | null = null;
+// Corpus acumulado: el RAG arranca con la base cargada desde data/ (ver
+// corpus.ts) y cualquier PDF subido después se suma a esa base en vez de
+// reemplazarla, para no perder el conocimiento precargado.
+let corpus: LCDoc[] = [];
 
 export async function processDocs(lcDocs: LCDoc[]) {
   if (lcDocs.length == 0) return;
-  const docs = lcDocs.map(lcDoc => new Document({
+  corpus = corpus.concat(lcDocs)
+  const docs = corpus.map(lcDoc => new Document({
     text: lcDoc.pageContent,
     metadata: lcDoc.metadata
   }))
@@ -77,7 +88,7 @@ export async function chat(query: string) {
       message: query
     })
     const response = queryResult.response
-    const metadata = queryResult.sourceNodes?.map(node => node.metadata)
+    const metadata = queryResult.sourceNodes?.map(node => node.node.metadata)
     return { response, metadata };
   }
 }

@@ -1,10 +1,12 @@
 import "dotenv/config"
+import path from "node:path"
 import express from "express"
 import cors from "cors"
 import multer from "multer"
 
 import { processDocs, chat, resetChatEngine, hasChatEngine, type LCDoc } from "./engine"
 import { parsePdfBuffer } from "./pdf"
+import { loadCorpusDir } from "./corpus"
 
 const app = express()
 app.use(cors())
@@ -76,7 +78,26 @@ app.post("/api/reset", async (_req, res) => {
   res.json({ ok: true })
 })
 
+const DATA_DIR = path.resolve(process.cwd(), process.env.DATA_DIR ?? "data")
+
 const port = Number(process.env.PORT ?? 3001)
 app.listen(port, () => {
   console.log(`pdf-ai-backend escuchando en http://localhost:${port}`)
 })
+
+// Corpus base con el que arranca el RAG (ver DATA_DIR / backend/data). Corre
+// en background para no bloquear el arranque del server: el health check
+// (`chatEngineReady`) refleja cuándo terminó de indexarse.
+loadCorpusDir(DATA_DIR)
+  .then(async docs => {
+    if (docs.length === 0) {
+      console.warn(`No se encontraron documentos en ${DATA_DIR}; el RAG arranca vacío.`)
+      return
+    }
+    console.log(`Indexando ${docs.length} documento(s) desde ${DATA_DIR}...`)
+    await processDocs(docs)
+    console.log("Corpus base listo.")
+  })
+  .catch(err => {
+    console.error("Error cargando el corpus base:", err)
+  })
