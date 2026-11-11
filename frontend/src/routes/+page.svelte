@@ -185,7 +185,7 @@
           <i class="bi bi-chat-dots-fill me-2 text-success"></i>Chat RAG · YVY AI
         </div>
 
-        <div class="card-body border-bottom py-2">
+        <div class="card-body border-bottom py-2" style="flex: 0 0 auto;">
           {#if !backendReady}
             <div class="text-muted small">
               <span class="spinner-border spinner-border-sm me-1"></span>
